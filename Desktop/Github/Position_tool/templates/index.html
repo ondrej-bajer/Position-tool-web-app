@@ -1,0 +1,305 @@
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <title>Order Manager</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+        .collapsible {
+            background-color: #777;
+            color: white;
+            cursor: pointer;
+            padding: 10px;
+            width: 100%;
+            border: none;
+            text-align: left;
+            outline: none;
+            font-size: 15px;
+            margin-bottom: 5px;
+        }
+        .active, .collapsible:hover {
+            background-color: #555;
+        }
+        .content {
+            padding: 0 18px;
+            display: none;
+            overflow: hidden;
+            background-color: #f1f1f1;
+            margin-bottom: 10px;
+        }
+        .action-icon {
+            font-size: 18px;
+            cursor: pointer;
+            margin-right: 5px;
+        }
+        .modal-content {
+            font-size: 0.85rem;
+        }
+        .modal-content input,
+        .modal-content select,
+        .modal-content textarea {
+            font-size: 0.85rem;
+            padding: 0.3rem 0.5rem;
+        }
+        .orders-container {
+            max-height: 50vh;
+            overflow-y: auto;
+            font-size: 0.85rem;
+        }
+        .orders-container th {
+            position: sticky;
+            top: 0;
+            background-color: white;
+            z-index: 1;
+            white-space: nowrap;
+        }
+    </style>
+</head>
+<body>
+
+<div class="container">
+<h1>Order Management</h1>
+
+{% with messages = get_flashed_messages(with_categories=true) %}
+  {% if messages %}
+    {% for category, message in messages %}
+      <div class="alert alert-{{ category }} mt-3">{{ message }}</div>
+    {% endfor %}
+  {% endif %}
+{% endwith %}
+
+<!-- New Order Form -->
+<button class="collapsible">New Order</button>
+<div class="content">
+    <form method="POST" autocomplete="off">
+        {{ new_order_form.hidden_tag() }}
+        <table class="table">
+            <tr><td>{{ new_order_form.product.label }}</td><td>{{ new_order_form.product(class="form-select") }}</td></tr>
+            <tr><td>{{ new_order_form.mwh_value.label }}</td><td>{{ new_order_form.mwh_value(class="form-select") }}</td></tr>
+            <tr><td>{{ new_order_form.buy_sell.label }}</td><td>{{ new_order_form.buy_sell(class="form-select") }}</td></tr>
+            <tr><td>{{ new_order_form.volume.label }}</td><td>{{ new_order_form.volume(class="form-control") }}</td></tr>
+            <tr><td>{{ new_order_form.entry_price.label }}</td><td>{{ new_order_form.entry_price(class="form-control") }}</td></tr>
+            <tr><td>{{ new_order_form.strategy.label }}</td><td>{{ new_order_form.strategy(class="form-select") }}</td></tr>
+            <tr><td>{{ new_order_form.comment.label }}</td><td>{{ new_order_form.comment(class="form-control") }}</td></tr>
+            <tr><td colspan="2">{{ new_order_form.submit(class="btn btn-success") }}</td></tr>
+        </table>
+    </form>
+</div>
+
+<!-- Upload CSV -->
+<button class="collapsible">Upload CSV</button>
+<div class="content">
+    <form action="{{ url_for('upload') }}" method="post" enctype="multipart/form-data" autocomplete="off">
+        <input type="file" name="file" class="form-control mb-2">
+        <button type="submit" class="btn btn-primary">Upload</button>
+    </form>
+</div>
+
+<!-- Active Orders Table -->
+<div class="orders-container mt-4">
+<h2>Active Orders</h2>
+<table class="table table-striped">
+    <thead>
+        <tr>
+            <th>ID</th>
+            <th>Source</th>
+            <th>Entry Timestamp</th>
+            <th>Product</th>
+            <th>MWh/Unit</th>
+            <th>Buy/Sell</th>
+            <th>Volume</th>
+            <th>Entry Price</th>
+            <th>Strategy</th>
+            <th>Comment</th>
+            <th>Current Price</th>
+            <th>PnL Exposure</th>
+            <th>Actions</th>
+        </tr>
+    </thead>
+    <tbody>
+    {% for order in orders %}
+        <tr>
+            <td>{{ order.id }}</td>
+            <td>{{ order.source }}</td>
+            <td>{{ order.entry_timestamp.strftime('%Y-%m-%d %H:%M') }}</td>
+            <td>{{ order.product }}</td>
+            <td>{{ order.mwh_value }}</td>
+            <td>{{ order.buy_sell }}</td>
+            <td>{{ order.volume }}</td>
+            <td>{{ order.entry_price }}</td>
+            <td>{{ order.strategy }}</td>
+            <td style="max-width: 100px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;" title="{{ order.comment }}">{{ order.comment }}</td>
+            <td id="price-{{ order.id }}">-</td>
+            <td id="pnl-{{ order.id }}">-</td>
+            <td>
+                <span class="action-icon" data-bs-toggle="modal" data-bs-target="#editModal{{ order.id }}">✏️</span>
+                <span class="action-icon" data-bs-toggle="modal" data-bs-target="#deleteModal{{ order.id }}">🗑️</span>
+            </td>
+        </tr>
+
+        <!-- Edit Modal -->
+        <div class="modal fade" id="editModal{{ order.id }}" tabindex="-1" aria-labelledby="editModalLabel{{ order.id }}" aria-hidden="true">
+          <div class="modal-dialog">
+            <div class="modal-content">
+              <form method="POST" action="{{ url_for('edit_order', order_id=order.id) }}" autocomplete="off">
+                {{ edit_order_form.hidden_tag() }}
+                <div class="modal-header">
+                    <h5 class="modal-title">Edit Order #{{ order.id }}</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="mb-3">
+                        {{ edit_order_form.exit_price.label(class="form-label") }}
+                        {{ edit_order_form.exit_price(class="form-control", value=order.exit_price or '') }}
+                    </div>
+                    <div class="mb-3">
+                        {{ edit_order_form.comment.label(class="form-label") }}
+                        {{ edit_order_form.comment(class="form-control", value=order.comment) }}
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    {{ edit_order_form.submit(class="btn btn-primary", value="Save Changes") }}
+                </div>
+              </form>
+            </div>
+          </div>
+        </div>
+
+        <!-- Delete Modal -->
+        <div class="modal fade" id="deleteModal{{ order.id }}" tabindex="-1" aria-labelledby="deleteModalLabel{{ order.id }}" aria-hidden="true">
+          <div class="modal-dialog">
+            <div class="modal-content">
+              <form method="POST" action="{{ url_for('delete_order', order_id=order.id) }}" autocomplete="off">
+                {{ password_form.hidden_tag() }}
+                <div class="modal-header bg-danger text-white">
+                    <h5 class="modal-title">Delete Order #{{ order.id }}</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <p><strong>Product:</strong> {{ order.product }}</p>
+                    <p><strong>Volume:</strong> {{ order.volume }}</p>
+                    <p class="mt-3">Enter Admin Password to Confirm:</p>
+                    {{ password_form.password(class="form-control") }}
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    {{ password_form.submit(class="btn btn-danger", value="Delete") }}
+                </div>
+              </form>
+            </div>
+          </div>
+        </div>
+    {% endfor %}
+    </tbody>
+</table>
+</div>
+
+<div class="mt-3">
+    <h5>Total PnL Exposure: <span id="pnl-summary" class="fw-bold text-dark">-</span></h5>
+    {% if var_value %}
+        <h6>VaR Limit: <span class="fw-bold">{{ var_value }}</span></h6>
+        <h6>Used VaR: <span id="pnl-percent" class="fw-bold text-dark">-</span></h6>
+    {% endif %}
+</div>
+
+<!-- Navigation Buttons -->
+<div class="mt-4">
+    <a href="{{ url_for('results') }}" class="btn btn-success">View Closed Deals</a>
+    <a href="{{ url_for('admin') }}" class="btn btn-primary ms-2">Go to Admin Panel</a>
+</div>
+
+</div> <!-- end container -->
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+
+<script>
+document.querySelectorAll(".collapsible").forEach(btn => {
+    btn.addEventListener("click", function () {
+        this.classList.toggle("active");
+        const content = this.nextElementSibling;
+        content.style.display = content.style.display === "block" ? "none" : "block";
+    });
+});
+</script>
+
+<script>
+async function refreshPrices() {
+    try {
+        const response = await fetch('/api/current_prices');
+        const prices = await response.json();
+        let totalPnL = 0;
+
+        const orders = {{ order_dicts|tojson }};
+        orders.forEach(order => {
+            const priceCell = document.getElementById(`price-${order.id}`);
+            const pnlCell = document.getElementById(`pnl-${order.id}`);
+            const currentPrice = prices[order.product];
+
+            if (priceCell && currentPrice !== undefined) {
+                priceCell.textContent = currentPrice.toFixed(2);
+
+                const entryPrice = parseFloat(order.entry_price);
+                const volume = parseFloat(order.volume);
+                const mwh = parseFloat(order.mwh_value);
+                const direction = order.buy_sell;
+
+                let pnl = null;
+                if (!isNaN(entryPrice) && !isNaN(volume) && !isNaN(mwh)) {
+                    const multiplier = volume * mwh;
+                    pnl = (direction === "Buy")
+                        ? (currentPrice - entryPrice) * multiplier
+                        : (entryPrice - currentPrice) * multiplier;
+
+                    totalPnL += pnl;
+                }
+
+                if (pnlCell) {
+                    pnlCell.textContent = (pnl !== null) ? pnl.toFixed(2) : '-';
+                    pnlCell.classList.remove("text-success", "text-danger", "text-secondary");
+                    if (pnl > 0) pnlCell.classList.add("text-success");
+                    else if (pnl < 0) pnlCell.classList.add("text-danger");
+                    else pnlCell.classList.add("text-secondary");
+                }
+            }
+        });
+
+        const summaryEl = document.getElementById("pnl-summary");
+        if (summaryEl) {
+            summaryEl.textContent = totalPnL.toFixed(2);
+            summaryEl.classList.remove("text-success", "text-danger", "text-secondary");
+            if (totalPnL > 0) summaryEl.classList.add("text-success");
+            else if (totalPnL < 0) summaryEl.classList.add("text-danger");
+            else summaryEl.classList.add("text-secondary");
+        }
+
+        const varLimit = parseFloat("{{ var_value or 0 }}");
+        if (!isNaN(varLimit) && varLimit > 0) {
+            const percentUsed = (totalPnL / varLimit) * 100;
+            const pnlPercentEl = document.getElementById("pnl-percent");
+            const pnlVsVarEl = document.getElementById("pnl-var-percent");
+
+            if (pnlPercentEl) {
+                pnlPercentEl.textContent = percentUsed.toFixed(2) + " %";
+                pnlPercentEl.classList.remove("text-success", "text-danger");
+                pnlPercentEl.classList.add(percentUsed > 100 ? "text-danger" : "text-success");
+            }
+
+            if (pnlVsVarEl) {
+                pnlVsVarEl.textContent = percentUsed.toFixed(2) + " %";
+                pnlVsVarEl.classList.remove("text-success", "text-danger");
+                pnlVsVarEl.classList.add(percentUsed > 100 ? "text-danger" : "text-success");
+            }
+        }
+
+    } catch (err) {
+        console.warn("❌ Failed to refresh prices:", err);
+    }
+}
+
+setInterval(refreshPrices, 30000);
+window.addEventListener('load', refreshPrices);
+</script>
+
+</body>
+</html>
