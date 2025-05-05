@@ -54,7 +54,7 @@ These templates act as starter files for testing and operational use.
 ## 📸 Screenshots
 ![Dashboard](screenshots/active_orders.png)
 ![Dashboard](screenshots/deal_overview.png)
-![Dashboard](screenshots/statistical.png)
+![Dashboard](screenshots/statisticals.png)
 
 
 
