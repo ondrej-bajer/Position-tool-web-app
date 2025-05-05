@@ -82,4 +82,4 @@ You are free to use, modify, and distribute it with attribution.
 
 ## ✉ Contact
 
-For suggestions or questions: [ondrej.bajer@centrum.cz](mailto:ondrej.bajer@centrum.cz)
+For suggestions or questions: [bajer.o@centrum.cz](mailto:bajer.o@centrum.cz)
